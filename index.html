@@ -222,4 +222,213 @@
     setError("");
     try{
       const data = await api("get", fmtISO(d));
-      tasks =
+      tasks = Array.isArray(data.tasks) ? data.tasks : [];
+    }catch(e){
+      setError(e.message || "Ошибка загрузки");
+      tasks = [];
+    }finally{
+      isLoading = false;
+      renderTasks();
+    }
+  }
+
+  async function saveTasksForDate(d){
+    if (telegramId === "guest"){
+      const key = "planner_guest_" + fmtISO(d);
+      localStorage.setItem(key, JSON.stringify(tasks));
+      return;
+    }
+    setError("");
+    await api("save", fmtISO(d), tasks);
+  }
+
+  // ===== UI: Calendar =====
+  function renderDow(){
+    const row = document.getElementById("dowRow");
+    row.innerHTML = "";
+    for (const name of DOW){
+      const div = document.createElement("div");
+      div.className = "dow";
+      div.textContent = name;
+      row.appendChild(div);
+    }
+  }
+
+  function renderCalendar(){
+    document.getElementById("monthTitle").textContent = capitalize(monthName(currentMonth));
+
+    const grid = document.getElementById("calGrid");
+    grid.innerHTML = "";
+
+    const first = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 1);
+    // JS: 0=Sun..6=Sat; нам надо Пн=0..Вс=6
+    let jsDow = first.getDay(); // 0..6
+    let offset = (jsDow === 0) ? 6 : (jsDow - 1); // Пн=0
+
+    const start = new Date(first);
+    start.setDate(first.getDate() - offset);
+
+    for (let i=0;i<42;i++){
+      const d = new Date(start);
+      d.setDate(start.getDate() + i);
+
+      const cell = document.createElement("div");
+      cell.className = "day";
+
+      const isOtherMonth = d.getMonth() !== currentMonth.getMonth();
+      if (isOtherMonth) cell.classList.add("muted");
+
+      const isSelected = fmtISO(d) === fmtISO(selectedDate);
+      if (isSelected) cell.classList.add("selected");
+
+      const n = document.createElement("div");
+      n.className = "n";
+      n.innerHTML = `<span>${d.getDate()}</span><span class="tag">${(fmtISO(d)===fmtISO(todayLocal())) ? "сегодня" : ""}</span>`;
+
+      cell.appendChild(n);
+
+      cell.addEventListener("click", () => {
+        selectDate(d);
+      });
+
+      grid.appendChild(cell);
+    }
+  }
+
+  function capitalize(s){
+    return s ? s.charAt(0).toUpperCase() + s.slice(1) : s;
+  }
+
+  // ===== UI: Tasks =====
+  function renderTasks(){
+    document.getElementById("dayTitle").textContent = dayTitle(selectedDate);
+    const done = tasks.filter(t=>t.done).length;
+    const total = tasks.length;
+    document.getElementById("progress").textContent = total ? `Выполнено: ${done}/${total}` : "Пока нет дел на этот день.";
+
+    const list = document.getElementById("tasks");
+    list.innerHTML = "";
+
+    tasks.forEach((t, idx) => {
+      const row = document.createElement("div");
+      row.className = "task";
+
+      const left = document.createElement("div");
+      left.className = "left";
+
+      const cb = document.createElement("input");
+      cb.type = "checkbox";
+      cb.className = "cb";
+      cb.checked = !!t.done;
+
+      const text = document.createElement("div");
+      text.className = "ttext" + (t.done ? " done" : "");
+      text.textContent = t.text;
+
+      cb.addEventListener("change", async () => {
+        t.done = cb.checked;
+        renderTasks();
+        try{ await saveTasksForDate(selectedDate); }catch(e){ setError(e.message); }
+      });
+
+      const del = document.createElement("button");
+      del.className = "del";
+      del.textContent = "✕";
+      del.addEventListener("click", async () => {
+        tasks.splice(idx, 1);
+        renderTasks();
+        try{ await saveTasksForDate(selectedDate); }catch(e){ setError(e.message); }
+      });
+
+      left.appendChild(cb);
+      left.appendChild(text);
+
+      row.appendChild(left);
+      row.appendChild(del);
+      list.appendChild(row);
+    });
+  }
+
+  async function addTask(){
+    const inp = document.getElementById("taskInput");
+    const text = (inp.value || "").trim();
+    if (!text) return;
+    tasks.unshift({ text, done:false });
+    inp.value = "";
+    renderTasks();
+    try{ await saveTasksForDate(selectedDate); }catch(e){ setError(e.message); }
+  }
+
+  async function rollOverIncomplete(){
+    const move = tasks.filter(t => !t.done).map(t => ({...t, done:false}));
+    if (!move.length) return;
+
+    // очистить текущий день от невыполненных (оставить выполненные)
+    tasks = tasks.filter(t => t.done);
+    renderTasks();
+
+    const tomorrow = addDays(selectedDate, 1);
+
+    try{
+      // сохранить текущий день
+      await saveTasksForDate(selectedDate);
+
+      // загрузить завтра, добавить и сохранить
+      const oldSelected = selectedDate;
+      selectedDate = tomorrow;
+      saveSelectedDate(selectedDate);
+
+      await loadTasksForDate(selectedDate);
+      tasks = [...move, ...tasks];
+      renderTasks();
+      await saveTasksForDate(selectedDate);
+
+      // вернуть обратно на исходный день? (логичнее остаться на завтра)
+      // если хочешь оставаться на старом — раскомментируй:
+      // selectedDate = oldSelected;
+      // saveSelectedDate(selectedDate);
+      // await loadTasksForDate(selectedDate);
+
+      // обновить календарь выделением
+      currentMonth = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), 1);
+      renderCalendar();
+    }catch(e){
+      setError(e.message || "Ошибка переноса");
+    }
+  }
+
+  // ===== Navigation =====
+  function selectDate(d){
+    selectedDate = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+    saveSelectedDate(selectedDate);
+
+    // если выбранная дата в другом месяце — перелистнём месяц
+    currentMonth = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), 1);
+
+    renderCalendar();
+    loadTasksForDate(selectedDate);
+  }
+
+  document.getElementById("prevDayBtn").addEventListener("click", () => selectDate(addDays(selectedDate, -1)));
+  document.getElementById("nextDayBtn").addEventListener("click", () => selectDate(addDays(selectedDate,  1)));
+
+  document.getElementById("prevMonthBtn").addEventListener("click", () => {
+    currentMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth()-1, 1);
+    renderCalendar();
+  });
+  document.getElementById("nextMonthBtn").addEventListener("click", () => {
+    currentMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth()+1, 1);
+    renderCalendar();
+  });
+
+  document.getElementById("addBtn").addEventListener("click", addTask);
+  document.getElementById("taskInput").addEventListener("keydown", (e)=>{ if(e.key==="Enter") addTask(); });
+  document.getElementById("rollBtn").addEventListener("click", rollOverIncomplete);
+
+  // ===== Init =====
+  renderDow();
+  renderCalendar();
+  loadTasksForDate(selectedDate);
+</script>
+</body>
+</html>
