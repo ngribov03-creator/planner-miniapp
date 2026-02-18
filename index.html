@@ -1,570 +1,225 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="ru">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Planner_N</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>Planner</title>
 
   <!-- Telegram WebApp SDK -->
-  <script src="https://unpkg.com/@twa-dev/sdk@1.5.0/dist/index.umd.js"></script>
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
 
   <style>
     :root{
-      --bg:#07121f;
-      --panel:#0c1b2e;
-      --panel2:#0a1626;
-      --stroke:rgba(255,255,255,.08);
-      --text:rgba(255,255,255,.92);
-      --muted:rgba(255,255,255,.60);
-      --accent:#2d6cff;
-      --accent2:#2bd576;
-      --warn:#ffcc00;
-      --danger:#ff4d4d;
-      --shadow: 0 10px 30px rgba(0,0,0,.35);
-      --r:18px;
+      --bg:#0b0f14; --card:#111826; --txt:#e6edf3; --mut:#9aa4b2; --acc:#3b82f6;
+      --danger:#ef4444; --ok:#22c55e;
     }
-    *{box-sizing:border-box}
+    *{ box-sizing:border-box; }
     body{
-      margin:0;
-      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial, "Noto Sans", "Helvetica Neue";
-      background: radial-gradient(1200px 800px at 20% 10%, rgba(45,108,255,.20), transparent 55%),
-                  radial-gradient(900px 650px at 80% 20%, rgba(43,213,118,.12), transparent 60%),
-                  var(--bg);
-      color:var(--text);
+      margin:0; font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,Inter,Arial,sans-serif;
+      background:var(--bg); color:var(--txt);
     }
-    .wrap{
-      max-width: 980px;
-      margin: 0 auto;
-      padding: 16px 14px 28px;
-    }
+    .wrap{ padding:14px; max-width:860px; margin:0 auto; }
     .top{
-      display:flex;
-      gap:12px;
-      align-items:center;
-      justify-content:space-between;
-      margin-bottom:12px;
+      display:flex; gap:12px; align-items:center; justify-content:space-between; margin-bottom:12px;
     }
     .pill{
-      background: rgba(255,255,255,.04);
-      border:1px solid var(--stroke);
-      border-radius: 999px;
-      padding: 10px 14px;
-      box-shadow: var(--shadow);
-      backdrop-filter: blur(10px);
-    }
-    .pill strong{font-weight:800}
-    .monthbar{
-      display:flex;
-      align-items:center;
-      gap:10px;
-      padding: 10px 12px;
+      background:var(--card); border:1px solid rgba(255,255,255,.08);
+      padding:10px 12px; border-radius:14px; font-size:14px; color:var(--txt);
     }
     .btn{
-      border:1px solid var(--stroke);
-      background: rgba(255,255,255,.04);
-      color:var(--text);
-      border-radius: 14px;
-      padding: 10px 12px;
-      cursor:pointer;
-      user-select:none;
+      background:var(--acc); border:none; color:white; padding:10px 12px; border-radius:12px;
+      font-weight:700; cursor:pointer;
     }
-    .btn:active{transform: translateY(1px)}
-    .monthtitle{
-      font-weight:900;
-      font-size: 22px;
-      letter-spacing:.2px;
-      padding: 6px 10px;
-    }
-    .grid{
-      margin-top: 12px;
-      display:grid;
-      grid-template-columns: repeat(7, 1fr);
-      gap: 10px;
-    }
-    .dow{
-      color: var(--muted);
-      font-weight: 700;
-      text-align:center;
-      padding: 6px 0;
-      font-size: 13px;
-      letter-spacing: .4px;
-      text-transform: uppercase;
-    }
-    .day{
-      min-height: 78px;
-      border-radius: 18px;
-      background: rgba(255,255,255,.03);
-      border:1px solid var(--stroke);
-      box-shadow: var(--shadow);
-      padding: 10px 10px 8px;
-      position:relative;
-      cursor:pointer;
-      overflow:hidden;
-    }
-    .day.muted{opacity:.30}
-    .day.selected{
-      outline: 2px solid rgba(45,108,255,.55);
-      box-shadow: 0 0 0 6px rgba(45,108,255,.10), var(--shadow);
-    }
-    .dnum{
-      font-weight: 900;
-      font-size: 20px;
-    }
-    .badge{
-      position:absolute;
-      left:10px;
-      bottom:8px;
-      color: var(--muted);
-      font-weight: 700;
-      font-size: 13px;
-      display:flex;
-      gap:6px;
-      align-items:center;
-    }
-    .star{
-      position:absolute;
-      right:10px;
-      top:10px;
-      font-size: 16px;
-      opacity:.95;
-    }
-    .panel{
-      margin-top: 14px;
-      border-radius: 22px;
-      background: linear-gradient(180deg, rgba(255,255,255,.04), rgba(255,255,255,.02));
-      border:1px solid var(--stroke);
-      box-shadow: var(--shadow);
-      padding: 16px;
-    }
-    .panel h2{
-      margin: 0 0 12px;
-      font-size: 34px;
-      font-weight: 1000;
-      letter-spacing: .2px;
-    }
-    .row{
-      display:flex;
-      gap:10px;
-      align-items:center;
-      flex-wrap:wrap;
-    }
-    input[type="text"]{
-      flex:1;
-      min-width: 220px;
-      border-radius: 16px;
-      border:1px solid var(--stroke);
-      background: rgba(255,255,255,.06);
-      color: var(--text);
-      padding: 14px 14px;
-      outline:none;
-      font-size: 16px;
-    }
-    .primary{
-      background: var(--accent);
-      border: 1px solid rgba(255,255,255,.10);
-      padding: 14px 16px;
-      border-radius: 16px;
-      color:white;
-      font-weight: 900;
-      cursor:pointer;
-      min-width: 140px;
-    }
-    .secondary{
-      background: rgba(255,255,255,.06);
-      border:1px solid var(--stroke);
-      padding: 14px 16px;
-      border-radius: 16px;
-      color: var(--text);
-      font-weight: 800;
-      cursor:pointer;
-      min-width: 170px;
-    }
-    .hint{
-      margin-top:10px;
-      color: var(--muted);
-      font-size: 13px;
-    }
-    ul{
-      list-style:none;
-      padding:0;
-      margin: 12px 0 0;
-      display:flex;
-      flex-direction:column;
-      gap:10px;
-    }
-    li{
-      display:flex;
-      align-items:center;
-      gap:10px;
-      padding: 12px;
-      border-radius: 16px;
-      background: rgba(255,255,255,.04);
-      border:1px solid var(--stroke);
-    }
-    .chk{width:20px;height:20px}
-    .task{
-      flex:1;
-      font-weight: 700;
-      color: var(--text);
-    }
-    .task.done{
-      opacity:.6;
-      text-decoration: line-through;
-    }
-    .xbtn{
-      background: transparent;
-      border: 1px solid rgba(255,255,255,.12);
-      color: rgba(255,255,255,.75);
-      border-radius: 12px;
-      padding: 8px 10px;
-      cursor:pointer;
-    }
-    .status{
-      margin-top:10px;
-      font-size: 13px;
-      color: var(--muted);
+    .btn:disabled{ opacity:.55; cursor:not-allowed; }
+    .ghost{
+      background:transparent; border:1px solid rgba(255,255,255,.14); color:var(--txt);
     }
 
-    @media (max-width:640px){
-      .monthtitle{font-size:20px}
-      .panel h2{font-size:30px}
-      .day{min-height:70px}
+    .calHead{
+      display:flex; align-items:center; justify-content:space-between; gap:10px; margin:10px 0 8px;
     }
+    .monthTitle{ font-weight:800; font-size:16px; }
+    .calNav{ display:flex; gap:8px; }
+
+    .grid{ display:grid; grid-template-columns:repeat(7, 1fr); gap:8px; }
+    .dow{ color:var(--mut); font-size:12px; text-align:center; padding:6px 0; user-select:none; }
+    .day{
+      background:var(--card); border:1px solid rgba(255,255,255,.08); border-radius:14px;
+      padding:10px; min-height:64px; cursor:pointer; display:flex; flex-direction:column; gap:6px;
+    }
+    .day.muted{ opacity:.45; }
+    .day.selected{ outline:2px solid rgba(59,130,246,.65); }
+    .n{ font-weight:800; display:flex; justify-content:space-between; }
+    .tag{ font-size:12px; color:var(--mut); }
+
+    .panel{
+      margin-top:12px; background:var(--card); border:1px solid rgba(255,255,255,.08);
+      border-radius:16px; padding:12px;
+    }
+    .h{
+      display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:10px;
+      flex-wrap:wrap;
+    }
+    .hTitle{ font-weight:900; }
+    .progress{ color:var(--mut); font-size:13px; }
+
+    .row{ display:flex; gap:8px; margin-top:10px; }
+    input{
+      flex:1; background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.12);
+      border-radius:12px; padding:10px 12px; color:var(--txt); outline:none;
+    }
+    .tasks{ margin-top:10px; display:flex; flex-direction:column; gap:8px; }
+    .task{
+      display:flex; align-items:center; justify-content:space-between; gap:10px;
+      background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.08);
+      border-radius:14px; padding:10px 12px;
+    }
+    .left{ display:flex; gap:10px; align-items:flex-start; }
+    .cb{ width:18px; height:18px; margin-top:2px; }
+    .ttext.done{ text-decoration:line-through; color:var(--mut); }
+    .del{
+      background:transparent; border:none; color:rgba(255,255,255,.65);
+      cursor:pointer; font-size:18px; line-height:1;
+    }
+    .hint{ margin-top:10px; color:var(--mut); font-size:12px; }
+    .danger{ color: var(--danger); }
   </style>
 </head>
 
 <body>
   <div class="wrap">
     <div class="top">
-      <div class="pill" id="who">Пользователь: Гость</div>
-
-      <div class="pill monthbar">
-        <button class="btn" id="prevBtn">←</button>
-        <div class="monthtitle" id="monthTitle">—</div>
-        <button class="btn" id="nextBtn">→</button>
+      <div class="pill" id="userPill">Пользователь: Гость</div>
+      <div style="display:flex; gap:8px;">
+        <button class="btn ghost" id="prevDayBtn">←</button>
+        <button class="btn ghost" id="nextDayBtn">→</button>
       </div>
     </div>
 
-    <div class="grid" id="dowRow"></div>
-    <div class="grid" id="calGrid"></div>
-
     <div class="panel">
-      <h2 id="panelTitle">Выбери день</h2>
-
-      <div class="row">
-        <input id="taskInput" type="text" placeholder="Новая задача..." />
-        <button class="primary" id="addBtn">Добавить</button>
-        <button class="secondary" id="carryBtn">Перенос невыполненного → завтра</button>
+      <div class="calHead">
+        <div class="monthTitle" id="monthTitle">—</div>
+        <div class="calNav">
+          <button class="btn ghost" id="prevMonthBtn">← месяц</button>
+          <button class="btn ghost" id="nextMonthBtn">месяц →</button>
+        </div>
       </div>
 
-      <div class="hint">Совет: отметь выполненное галочкой. “Перенос” переносит только невыполненные.</div>
+      <div class="grid" id="dowRow"></div>
+      <div class="grid" id="calGrid"></div>
+    </div>
 
-      <ul id="taskList"></ul>
-      <div class="status" id="statusLine"></div>
+    <div class="panel">
+      <div class="h">
+        <div>
+          <div class="hTitle" id="dayTitle">Выбери день</div>
+          <div class="progress" id="progress">—</div>
+        </div>
+        <button class="btn ghost" id="rollBtn">Перенос невыполненного → завтра</button>
+      </div>
+
+      <div class="row">
+        <input id="taskInput" placeholder="Новое дело…" />
+        <button class="btn" id="addBtn">Добавить</button>
+      </div>
+
+      <div class="tasks" id="tasks"></div>
+
+      <div class="hint">
+        Совет: отметь выполненное галочкой. “Перенос” переносит только невыполненные.
+        <span class="danger" id="err" style="display:none;"></span>
+      </div>
     </div>
   </div>
 
 <script>
-  // ---------- Telegram user ----------
+  // ===== Telegram context =====
   const tg = window.Telegram?.WebApp;
-  if (tg) { tg.ready(); tg.expand(); }
+  if (tg) tg.ready();
 
-  const initData = tg?.initData || "";                 // нужно для проверки на сервере
+  const initData = tg?.initData || "";
   const user = tg?.initDataUnsafe?.user || null;
   const telegramId = user?.id ? String(user.id) : "guest";
-  const uname = user ? [user.first_name, user.last_name].filter(Boolean).join(" ") : "Гость";
-  document.getElementById("who").textContent = `Пользователь: ${uname}`;
+  const userName = user ? (user.username ? "@"+user.username : [user.first_name, user.last_name].filter(Boolean).join(" ")) : "Гость";
+  document.getElementById("userPill").textContent = "Пользователь: " + userName;
 
-  // ---------- Calendar state ----------
-  const monthNames = ["Январь","Февраль","Март","Апрель","Май","Июнь","Июль","Август","Сентябрь","Октябрь","Ноябрь","Декабрь"];
-  const dow = ["Пн","Вт","Ср","Чт","Пт","Сб","Вс"];
+  // ===== State =====
+  const LS_KEY = "planner_selected_date_v1";
+  const DOW = ["Пн","Вт","Ср","Чт","Пт","Сб","Вс"];
 
-  const dowRow = document.getElementById("dowRow");
-  dowRow.innerHTML = dow.map(d => `<div class="dow">${d}</div>`).join("");
+  let selectedDate = loadSelectedDate() || todayLocal();
+  let currentMonth = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), 1);
 
-  const calGrid = document.getElementById("calGrid");
-  const monthTitle = document.getElementById("monthTitle");
-  const panelTitle = document.getElementById("panelTitle");
-  const taskList = document.getElementById("taskList");
-  const taskInput = document.getElementById("taskInput");
-  const statusLine = document.getElementById("statusLine");
+  let tasks = []; // [{text:string, done:boolean}]
+  let isLoading = false;
 
-  let view = new Date();
-  view.setDate(1);
-
-  let selected = null; // Date object
-
-  // ---------- Storage helpers ----------
-  function ymd(d){
-    const y = d.getFullYear();
-    const m = String(d.getMonth()+1).padStart(2,"0");
-    const day = String(d.getDate()).padStart(2,"0");
-    return `${y}-${m}-${day}`;
+  // ===== Helpers =====
+  function pad(n){ return String(n).padStart(2,"0"); }
+  function fmtISO(d){
+    return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+  }
+  function parseISO(s){
+    const [y,m,dd] = s.split("-").map(Number);
+    return new Date(y, (m-1), dd);
+  }
+  function todayLocal(){
+    const now = new Date();
+    return new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  }
+  function addDays(date, delta){
+    const d = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+    d.setDate(d.getDate() + delta);
+    return d;
+  }
+  function monthName(d){
+    return d.toLocaleDateString("ru-RU", { month:"long", year:"numeric" });
+  }
+  function dayTitle(d){
+    return d.toLocaleDateString("ru-RU", { weekday:"long", day:"2-digit", month:"long" });
+  }
+  function saveSelectedDate(d){
+    localStorage.setItem(LS_KEY, fmtISO(d));
+  }
+  function loadSelectedDate(){
+    const s = localStorage.getItem(LS_KEY);
+    if (!s) return null;
+    try { return parseISO(s); } catch { return null; }
+  }
+  function setError(msg){
+    const el = document.getElementById("err");
+    if (!msg){ el.style.display="none"; el.textContent=""; return; }
+    el.style.display="inline"; el.textContent=" — " + msg;
   }
 
-  function storeKey(){
-    return `planner:${telegramId}:tasksByDay`;
-  }
-
-  function getLocalAll(){
-    try { return JSON.parse(localStorage.getItem(storeKey()) || "{}"); }
-    catch { return {}; }
-  }
-
-  function setLocalAll(obj){
-    localStorage.setItem(storeKey(), JSON.stringify(obj));
-  }
-
-  function getLocalDay(dateStr){
-    const all = getLocalAll();
-    return Array.isArray(all[dateStr]) ? all[dateStr] : [];
-  }
-
-  function setLocalDay(dateStr, tasks){
-    const all = getLocalAll();
-    all[dateStr] = tasks;
-    setLocalAll(all);
-  }
-
-  function countForDay(dateStr){
-    const t = getLocalDay(dateStr);
-    if (!t.length) return { total:0, open:0 };
-    const open = t.filter(x => !x.done).length;
-    return { total: t.length, open };
-  }
-
-  // ---------- Server API (Supabase via Netlify Function) ----------
-  // ВАЖНО: на сервер отправляем только когда telegramId != guest и есть initData
-  async function api(path, method="GET", body=null) {
-    const res = await fetch(`/.netlify/functions/${path}`, {
-      method,
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ initData, telegramId, ...body })
+  // ===== API =====
+  async function api(action, dateISO, tasksArr){
+    const res = await fetch("/.netlify/functions/tasks", {
+      method: "POST",
+      headers: {"Content-Type":"application/json"},
+      body: JSON.stringify({
+        initData,
+        telegramId,
+        action,
+        date: dateISO,
+        tasks: tasksArr
+      })
     });
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(data.error || "API error");
+    const data = await res.json().catch(()=> ({}));
+    if (!res.ok) throw new Error(data?.error || "API error");
     return data;
   }
 
-  async function loadFromServerIfPossible(dateStr){
-    // если открыли просто в браузере — initData пустой, сервер не даст
-    if (!initData || telegramId === "guest") return false;
-    try{
-      const data = await api("tasks", "POST", { action:"get", date: dateStr });
-      if (Array.isArray(data.tasks)){
-        setLocalDay(dateStr, data.tasks);
-      }
-      statusLine.textContent = "Синхронизация: получено с сервера ✅";
-      return true;
-    }catch(e){
-      statusLine.textContent = `Синхронизация: нет доступа/ошибка (${e.message})`;
-      return false;
-    }
-  }
-
-  async function saveToServerIfPossible(dateStr){
-    if (!initData || telegramId === "guest") return false;
-    try{
-      const tasks = getLocalDay(dateStr);
-      await api("tasks", "POST", { action:"save", date: dateStr, tasks });
-      statusLine.textContent = "Синхронизация: сохранено на сервер ✅";
-      return true;
-    }catch(e){
-      statusLine.textContent = `Синхронизация: не сохранилось (${e.message})`;
-      return false;
-    }
-  }
-
-  // ---------- UI render ----------
-  function renderMonth(){
-    const y = view.getFullYear();
-    const m = view.getMonth();
-    monthTitle.textContent = `${monthNames[m]} ${y}`;
-
-    calGrid.innerHTML = "";
-
-    // compute first day offset (Mon=0..Sun=6)
-    const first = new Date(y, m, 1);
-    const jsDow = first.getDay(); // Sun=0..Sat=6
-    const offset = (jsDow + 6) % 7; // convert to Mon=0
-
-    const daysInMonth = new Date(y, m+1, 0).getDate();
-    const prevDays = new Date(y, m, 0).getDate();
-
-    // 42 cells (6 weeks) looks like your screenshot
-    for (let i=0; i<42; i++){
-      const cell = document.createElement("div");
-      cell.className = "day";
-
-      let d = new Date(y, m, 1);
-      let dayNum = 1;
-
-      if (i < offset){
-        // prev month
-        dayNum = prevDays - (offset - 1 - i);
-        d = new Date(y, m-1, dayNum);
-        cell.classList.add("muted");
-      } else if (i >= offset + daysInMonth){
-        // next month
-        dayNum = i - (offset + daysInMonth) + 1;
-        d = new Date(y, m+1, dayNum);
-        cell.classList.add("muted");
-      } else {
-        dayNum = i - offset + 1;
-        d = new Date(y, m, dayNum);
-      }
-
-      const ds = ymd(d);
-      const c = countForDay(ds);
-
-      const isSelected = selected && ymd(selected) === ds;
-      if (isSelected) cell.classList.add("selected");
-
-      cell.innerHTML = `
-        <div class="dnum">${d.getDate()}</div>
-        ${c.open > 0 ? `<div class="star">⭐</div>` : ``}
-        <div class="badge">${c.total ? `${c.open}/${c.total}` : ``}</div>
-      `;
-
-      cell.addEventListener("click", async ()=>{
-        selected = d;
-        renderMonth(); // to update selection highlight
-
-        panelTitle.textContent = `Задачи: ${ds}`;
-        renderTasks(ds);
-
-        // пытаемся подтянуть с сервера (если WebApp)
-        await loadFromServerIfPossible(ds);
-        renderTasks(ds);
-      });
-
-      calGrid.appendChild(cell);
-    }
-  }
-
-  function renderTasks(dateStr){
-    const tasks = getLocalDay(dateStr);
-    taskList.innerHTML = "";
-
-    tasks.forEach((t, idx)=>{
-      const li = document.createElement("li");
-
-      const cb = document.createElement("input");
-      cb.type = "checkbox";
-      cb.className = "chk";
-      cb.checked = !!t.done;
-
-      const text = document.createElement("div");
-      text.className = "task" + (t.done ? " done" : "");
-      text.textContent = t.text;
-
-      const del = document.createElement("button");
-      del.className = "xbtn";
-      del.textContent = "Удалить";
-
-      cb.addEventListener("change", async ()=>{
-        t.done = cb.checked;
-        tasks[idx] = t;
-        setLocalDay(dateStr, tasks);
-        renderTasks(dateStr);
-        renderMonth();
-        await saveToServerIfPossible(dateStr);
-      });
-
-      del.addEventListener("click", async ()=>{
-        tasks.splice(idx,1);
-        setLocalDay(dateStr, tasks);
-        renderTasks(dateStr);
-        renderMonth();
-        await saveToServerIfPossible(dateStr);
-      });
-
-      li.appendChild(cb);
-      li.appendChild(text);
-      li.appendChild(del);
-      taskList.appendChild(li);
-    });
-
-    const c = countForDay(dateStr);
+  async function loadTasksForDate(d){
     if (telegramId === "guest"){
-      statusLine.textContent = "Режим: гостевой (в браузере). Открой через Telegram WebApp — будет синхронизация.";
-    } else {
-      statusLine.textContent = `Задач: ${c.total}, невыполнено: ${c.open}`;
+      // режим без Telegram пользователя: локально
+      const key = "planner_guest_" + fmtISO(d);
+      tasks = JSON.parse(localStorage.getItem(key) || "[]");
+      renderTasks();
+      return;
     }
-  }
 
-  function ensureSelected(){
-    if (!selected){
-      selected = new Date();
-    }
-    panelTitle.textContent = `Задачи: ${ymd(selected)}`;
-    renderTasks(ymd(selected));
-  }
-
-  // ---------- Actions ----------
-  document.getElementById("prevBtn").addEventListener("click", ()=>{
-    view.setMonth(view.getMonth()-1);
-    view.setDate(1);
-    renderMonth();
-  });
-
-  document.getElementById("nextBtn").addEventListener("click", ()=>{
-    view.setMonth(view.getMonth()+1);
-    view.setDate(1);
-    renderMonth();
-  });
-
-  document.getElementById("addBtn").addEventListener("click", async ()=>{
-    if (!selected) selected = new Date();
-    const ds = ymd(selected);
-
-    const val = (taskInput.value || "").trim();
-    if (!val) return;
-
-    const tasks = getLocalDay(ds);
-    tasks.unshift({ text: val, done:false, ts: Date.now() });
-    setLocalDay(ds, tasks);
-
-    taskInput.value = "";
-    renderTasks(ds);
-    renderMonth();
-    await saveToServerIfPossible(ds);
-  });
-
-  document.getElementById("carryBtn").addEventListener("click", async ()=>{
-    if (!selected) selected = new Date();
-    const from = new Date(selected);
-    const to = new Date(selected);
-    to.setDate(to.getDate()+1);
-
-    const fromStr = ymd(from);
-    const toStr = ymd(to);
-
-    const fromTasks = getLocalDay(fromStr);
-    const move = fromTasks.filter(t => !t.done);
-
-    if (!move.length) return;
-
-    // remove moved from today
-    const remain = fromTasks.filter(t => t.done);
-    setLocalDay(fromStr, remain);
-
-    // add to tomorrow
-    const toTasks = getLocalDay(toStr);
-    const merged = [...move.map(t => ({...t, done:false})), ...toTasks];
-    setLocalDay(toStr, merged);
-
-    renderTasks(fromStr);
-    renderMonth();
-
-    await saveToServerIfPossible(fromStr);
-    await saveToServerIfPossible(toStr);
-  });
-
-  // init
-  renderMonth();
-  ensureSelected();
-</script>
-
-</body>
-</html>
+    isLoading = true;
+    setError("");
+    try{
+      const data = await api("get", fmtISO(d));
+      tasks =
