@@ -5,13 +5,12 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <title>Planner</title>
 
-  <!-- Telegram WebApp SDK -->
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
 
   <style>
     :root{
       --bg:#0b0f14; --card:#111826; --txt:#e6edf3; --mut:#9aa4b2; --acc:#3b82f6;
-      --danger:#ef4444; --ok:#22c55e;
+      --danger:#ef4444;
     }
     *{ box-sizing:border-box; }
     body{
@@ -37,9 +36,10 @@
 
     .calHead{
       display:flex; align-items:center; justify-content:space-between; gap:10px; margin:10px 0 8px;
+      flex-wrap:wrap;
     }
     .monthTitle{ font-weight:800; font-size:16px; }
-    .calNav{ display:flex; gap:8px; }
+    .calNav{ display:flex; gap:8px; flex-wrap:wrap; }
 
     .grid{ display:grid; grid-template-columns:repeat(7, 1fr); gap:8px; }
     .dow{ color:var(--mut); font-size:12px; text-align:center; padding:6px 0; user-select:none; }
@@ -153,6 +153,36 @@
   let tasks = []; // [{text:string, done:boolean}]
   let isLoading = false;
 
+  // ===== Save queue (FIX race conditions) =====
+  // Идея: любые изменения ставят "грязный" флаг и запускают дебаунс.
+  // Затем сохраняем строго по очереди, всегда снимком последнего состояния.
+  let saveChain = Promise.resolve();
+  let saveTimer = null;
+  const SAVE_DEBOUNCE_MS = 300;
+
+  function scheduleSave(dateObj){
+    if (telegramId === "guest") {
+      // гостевой режим тоже сохраняем, но локально
+      const key = "planner_guest_" + fmtISO(dateObj);
+      localStorage.setItem(key, JSON.stringify(tasks));
+      return;
+    }
+
+    if (saveTimer) clearTimeout(saveTimer);
+    saveTimer = setTimeout(() => {
+      const dateISO = fmtISO(dateObj);
+      // Снимок актуального состояния (чтобы не улетало "старое")
+      const snapshot = JSON.parse(JSON.stringify(tasks));
+
+      saveChain = saveChain.then(async () => {
+        setError("");
+        await api("save", dateISO, snapshot);
+      }).catch(e => {
+        setError(e.message || "Ошибка сохранения");
+      });
+    }, SAVE_DEBOUNCE_MS);
+  }
+
   // ===== Helpers =====
   function pad(n){ return String(n).padStart(2,"0"); }
   function fmtISO(d){
@@ -190,6 +220,9 @@
     if (!msg){ el.style.display="none"; el.textContent=""; return; }
     el.style.display="inline"; el.textContent=" — " + msg;
   }
+  function capitalize(s){
+    return s ? s.charAt(0).toUpperCase() + s.slice(1) : s;
+  }
 
   // ===== API =====
   async function api(action, dateISO, tasksArr){
@@ -211,7 +244,6 @@
 
   async function loadTasksForDate(d){
     if (telegramId === "guest"){
-      // режим без Telegram пользователя: локально
       const key = "planner_guest_" + fmtISO(d);
       tasks = JSON.parse(localStorage.getItem(key) || "[]");
       renderTasks();
@@ -230,16 +262,6 @@
       isLoading = false;
       renderTasks();
     }
-  }
-
-  async function saveTasksForDate(d){
-    if (telegramId === "guest"){
-      const key = "planner_guest_" + fmtISO(d);
-      localStorage.setItem(key, JSON.stringify(tasks));
-      return;
-    }
-    setError("");
-    await api("save", fmtISO(d), tasks);
   }
 
   // ===== UI: Calendar =====
@@ -295,10 +317,6 @@
     }
   }
 
-  function capitalize(s){
-    return s ? s.charAt(0).toUpperCase() + s.slice(1) : s;
-  }
-
   // ===== UI: Tasks =====
   function renderTasks(){
     document.getElementById("dayTitle").textContent = dayTitle(selectedDate);
@@ -325,19 +343,19 @@
       text.className = "ttext" + (t.done ? " done" : "");
       text.textContent = t.text;
 
-      cb.addEventListener("change", async () => {
+      cb.addEventListener("change", () => {
         t.done = cb.checked;
         renderTasks();
-        try{ await saveTasksForDate(selectedDate); }catch(e){ setError(e.message); }
+        scheduleSave(selectedDate);
       });
 
       const del = document.createElement("button");
       del.className = "del";
       del.textContent = "✕";
-      del.addEventListener("click", async () => {
+      del.addEventListener("click", () => {
         tasks.splice(idx, 1);
         renderTasks();
-        try{ await saveTasksForDate(selectedDate); }catch(e){ setError(e.message); }
+        scheduleSave(selectedDate);
       });
 
       left.appendChild(cb);
@@ -349,52 +367,41 @@
     });
   }
 
-  async function addTask(){
+  function addTask(){
     const inp = document.getElementById("taskInput");
     const text = (inp.value || "").trim();
     if (!text) return;
+
     tasks.unshift({ text, done:false });
     inp.value = "";
     renderTasks();
-    try{ await saveTasksForDate(selectedDate); }catch(e){ setError(e.message); }
+    scheduleSave(selectedDate);
   }
 
   async function rollOverIncomplete(){
     const move = tasks.filter(t => !t.done).map(t => ({...t, done:false}));
     if (!move.length) return;
 
-    // очистить текущий день от невыполненных (оставить выполненные)
+    // 1) Удаляем невыполненные из текущего дня
     tasks = tasks.filter(t => t.done);
     renderTasks();
+    scheduleSave(selectedDate);
 
+    // 2) Переходим на завтра, загружаем, добавляем и сохраняем
     const tomorrow = addDays(selectedDate, 1);
+    selectDate(tomorrow);
 
-    try{
-      // сохранить текущий день
-      await saveTasksForDate(selectedDate);
+    // ждём загрузку задач на завтра, чтобы не смешать состояния
+    await saveChain; // дождаться предыдущих сохранений
+    await loadTasksForDate(selectedDate);
 
-      // загрузить завтра, добавить и сохранить
-      const oldSelected = selectedDate;
-      selectedDate = tomorrow;
-      saveSelectedDate(selectedDate);
+    tasks = [...move, ...tasks];
+    renderTasks();
+    scheduleSave(selectedDate);
 
-      await loadTasksForDate(selectedDate);
-      tasks = [...move, ...tasks];
-      renderTasks();
-      await saveTasksForDate(selectedDate);
-
-      // вернуть обратно на исходный день? (логичнее остаться на завтра)
-      // если хочешь оставаться на старом — раскомментируй:
-      // selectedDate = oldSelected;
-      // saveSelectedDate(selectedDate);
-      // await loadTasksForDate(selectedDate);
-
-      // обновить календарь выделением
-      currentMonth = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), 1);
-      renderCalendar();
-    }catch(e){
-      setError(e.message || "Ошибка переноса");
-    }
+    // обновить календарь выделением
+    currentMonth = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), 1);
+    renderCalendar();
   }
 
   // ===== Navigation =====
@@ -402,9 +409,7 @@
     selectedDate = new Date(d.getFullYear(), d.getMonth(), d.getDate());
     saveSelectedDate(selectedDate);
 
-    // если выбранная дата в другом месяце — перелистнём месяц
     currentMonth = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), 1);
-
     renderCalendar();
     loadTasksForDate(selectedDate);
   }
