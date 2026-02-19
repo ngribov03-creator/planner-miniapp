@@ -1,119 +1,148 @@
 // netlify/functions/tasks.js
-import crypto from "crypto";
+const crypto = require("crypto");
+const { createClient } = require("@supabase/supabase-js");
 
-function json(statusCode, body) {
+// --- Telegram initData validation (HMAC-SHA256) ---
+function parseInitData(initData) {
+  const params = new URLSearchParams(initData);
+  const obj = {};
+  for (const [k, v] of params.entries()) obj[k] = v;
+  return obj;
+}
+
+function buildDataCheckString(fields) {
+  // Exclude hash, sort by key, join "key=value" with \n
+  return Object.keys(fields)
+    .filter((k) => k !== "hash")
+    .sort()
+    .map((k) => `${k}=${fields[k]}`)
+    .join("\n");
+}
+
+function validateTelegramInitData(initData, botToken) {
+  if (!initData || typeof initData !== "string") return false;
+
+  const data = parseInitData(initData);
+  const receivedHash = data.hash;
+  if (!receivedHash) return false;
+
+  const dataCheckString = buildDataCheckString(data);
+
+  // secret_key = HMAC key: SHA256(botToken) as per Telegram docs
+  const secretKey = crypto.createHash("sha256").update(botToken).digest();
+
+  const computedHash = crypto
+    .createHmac("sha256", secretKey)
+    .update(dataCheckString)
+    .digest("hex");
+
+  // constant-time compare
+  const a = Buffer.from(computedHash, "hex");
+  const b = Buffer.from(receivedHash, "hex");
+  if (a.length !== b.length) return false;
+  return crypto.timingSafeEqual(a, b);
+}
+
+function json(statusCode, bodyObj) {
   return {
     statusCode,
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
+    headers: {
+      "Content-Type": "application/json",
+      // If you later need CORS for non-Telegram testing, uncomment:
+      // "Access-Control-Allow-Origin": "*",
+      // "Access-Control-Allow-Headers": "Content-Type",
+      // "Access-Control-Allow-Methods": "POST, OPTIONS",
+    },
+    body: JSON.stringify(bodyObj),
   };
 }
 
-// Telegram initData validation (WebApp)
-// https://core.telegram.org/bots/webapps#validating-data-received-via-the-mini-app
-function validateTelegramInitData(initData, botToken) {
-  if (!initData) return false;
+exports.handler = async (event) => {
+  // If you later need OPTIONS for CORS:
+  // if (event.httpMethod === "OPTIONS") return { statusCode: 204, headers: { ... } };
 
-  const params = new URLSearchParams(initData);
-  const hash = params.get("hash");
-  if (!hash) return false;
-  params.delete("hash");
+  if (event.httpMethod !== "POST") {
+    return json(405, { error: "Method not allowed" });
+  }
 
-  const dataCheckString = [...params.entries()]
-    .sort(([a], [b]) => a.localeCompare(b))
-    .map(([k, v]) => `${k}=${v}`)
-    .join("\n");
+  const SUPABASE_URL = process.env.SUPABASE_URL;
+  const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 
-  const secret = crypto.createHmac("sha256", "WebAppData").update(botToken).digest();
-  const computedHash = crypto.createHmac("sha256", secret).update(dataCheckString).digest("hex");
+  if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
+    return json(500, { error: "Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY in Netlify env vars" });
+  }
+  if (!TELEGRAM_BOT_TOKEN) {
+    return json(500, { error: "Missing TELEGRAM_BOT_TOKEN in Netlify env vars" });
+  }
 
-  return computedHash === hash;
-}
+  let payload;
+  try {
+    payload = JSON.parse(event.body || "{}");
+  } catch {
+    return json(400, { error: "Invalid JSON body" });
+  }
 
-async function supabaseRequest(path, method, serviceKey, url, body) {
-  const res = await fetch(`${url}/rest/v1/${path}`, {
-    method,
-    headers: {
-      "Content-Type": "application/json",
-      "apikey": serviceKey,
-      "Authorization": `Bearer ${serviceKey}`,
-      "Prefer": "return=representation",
-    },
-    body: body ? JSON.stringify(body) : undefined,
+  const { initData, telegramId, action, date, tasks } = payload;
+
+  if (!telegramId || typeof telegramId !== "string") {
+    return json(400, { error: "telegramId is required" });
+  }
+  if (!action || typeof action !== "string") {
+    return json(400, { error: "action is required" });
+  }
+  if (!date || typeof date !== "string") {
+    return json(400, { error: "date is required (YYYY-MM-DD)" });
+  }
+
+  // Validate Telegram initData
+  const ok = validateTelegramInitData(initData, TELEGRAM_BOT_TOKEN);
+  if (!ok) {
+    return json(401, { error: "Invalid Telegram initData" });
+  }
+
+  const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
+    auth: { persistSession: false },
   });
 
-  const text = await res.text();
-  let data = null;
-  try { data = text ? JSON.parse(text) : null; } catch { data = text; }
-
-  if (!res.ok) {
-    throw new Error(typeof data === "string" ? data : (data?.message || "Supabase error"));
-  }
-  return data;
-}
-
-export async function handler(event) {
   try {
-    const { SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, TELEGRAM_BOT_TOKEN } = process.env;
-
-    if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
-      return json(500, { error: "Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY in Netlify env vars" });
-    }
-    if (!TELEGRAM_BOT_TOKEN) {
-      return json(500, { error: "Missing TELEGRAM_BOT_TOKEN in Netlify env vars" });
-    }
-
-    const payload = JSON.parse(event.body || "{}");
-    const { initData, telegramId, action, date, tasks } = payload;
-
-    if (!validateTelegramInitData(initData, TELEGRAM_BOT_TOKEN)) {
-      return json(401, { error: "Invalid Telegram initData" });
-    }
-    if (!telegramId || telegramId === "guest") {
-      return json(400, { error: "telegramId missing" });
-    }
-    if (!date) {
-      return json(400, { error: "date missing" });
-    }
-
-    // TABLE: planner_tasks (telegram_id text, date text, tasks jsonb, updated_at timestamptz)
-    // PK: (telegram_id, date)
-
     if (action === "get") {
-      const rows = await supabaseRequest(
-        `planner_tasks?telegram_id=eq.${encodeURIComponent(telegramId)}&date=eq.${encodeURIComponent(date)}&select=tasks`,
-        "GET",
-        SUPABASE_SERVICE_ROLE_KEY,
-        SUPABASE_URL
-      );
-      const row = Array.isArray(rows) && rows[0] ? rows[0] : null;
-      return json(200, { tasks: row?.tasks || [] });
+      const { data, error } = await supabase
+        .from("planner_tasks")
+        .select("tasks")
+        .eq("telegram_id", telegramId)
+        .eq("date", date)
+        .maybeSingle();
+
+      if (error) return json(500, { error: error.message });
+
+      return json(200, { tasks: data?.tasks ?? [] });
     }
 
     if (action === "save") {
-      if (!Array.isArray(tasks)) return json(400, { error: "tasks must be an array" });
+      if (!Array.isArray(tasks)) {
+        return json(400, { error: "tasks must be an array" });
+      }
 
-      const upsertBody = {
+      const row = {
         telegram_id: telegramId,
         date,
         tasks,
         updated_at: new Date().toISOString(),
       };
 
-      // upsert by PK
-      await supabaseRequest(
-        `planner_tasks?on_conflict=telegram_id,date`,
-        "POST",
-        SUPABASE_SERVICE_ROLE_KEY,
-        SUPABASE_URL,
-        upsertBody
-      );
+      // ✅ КЛЮЧЕВОЕ: UPSERT вместо INSERT
+      const { error } = await supabase
+        .from("planner_tasks")
+        .upsert(row, { onConflict: "telegram_id,date" });
+
+      if (error) return json(500, { error: error.message });
 
       return json(200, { ok: true });
     }
 
-    return json(400, { error: "Unknown action" });
+    return json(400, { error: "Unknown action. Use 'get' or 'save'." });
   } catch (e) {
-    return json(500, { error: e.message || "Server error" });
+    return json(500, { error: e?.message || "Server error" });
   }
-}
+};
