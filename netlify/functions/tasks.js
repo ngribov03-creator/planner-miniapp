@@ -1,148 +1,133 @@
 // netlify/functions/tasks.js
-const crypto = require("crypto");
-const { createClient } = require("@supabase/supabase-js");
-
-// --- Telegram initData validation (HMAC-SHA256) ---
-function parseInitData(initData) {
-  const params = new URLSearchParams(initData);
-  const obj = {};
-  for (const [k, v] of params.entries()) obj[k] = v;
-  return obj;
-}
-
-function buildDataCheckString(fields) {
-  // Exclude hash, sort by key, join "key=value" with \n
-  return Object.keys(fields)
-    .filter((k) => k !== "hash")
-    .sort()
-    .map((k) => `${k}=${fields[k]}`)
-    .join("\n");
-}
-
-function validateTelegramInitData(initData, botToken) {
-  if (!initData || typeof initData !== "string") return false;
-
-  const data = parseInitData(initData);
-  const receivedHash = data.hash;
-  if (!receivedHash) return false;
-
-  const dataCheckString = buildDataCheckString(data);
-
-  // secret_key = HMAC key: SHA256(botToken) as per Telegram docs
-  const secretKey = crypto.createHash("sha256").update(botToken).digest();
-
-  const computedHash = crypto
-    .createHmac("sha256", secretKey)
-    .update(dataCheckString)
-    .digest("hex");
-
-  // constant-time compare
-  const a = Buffer.from(computedHash, "hex");
-  const b = Buffer.from(receivedHash, "hex");
-  if (a.length !== b.length) return false;
-  return crypto.timingSafeEqual(a, b);
-}
-
-function json(statusCode, bodyObj) {
-  return {
-    statusCode,
-    headers: {
-      "Content-Type": "application/json",
-      // If you later need CORS for non-Telegram testing, uncomment:
-      // "Access-Control-Allow-Origin": "*",
-      // "Access-Control-Allow-Headers": "Content-Type",
-      // "Access-Control-Allow-Methods": "POST, OPTIONS",
-    },
-    body: JSON.stringify(bodyObj),
+export async function handler(event) {
+  // CORS
+  const corsHeaders = {
+    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Headers": "Content-Type",
+    "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
   };
-}
 
-exports.handler = async (event) => {
-  // If you later need OPTIONS for CORS:
-  // if (event.httpMethod === "OPTIONS") return { statusCode: 204, headers: { ... } };
-
-  if (event.httpMethod !== "POST") {
-    return json(405, { error: "Method not allowed" });
+  if (event.httpMethod === "OPTIONS") {
+    return { statusCode: 200, headers: corsHeaders, body: "" };
   }
-
-  const SUPABASE_URL = process.env.SUPABASE_URL;
-  const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
-
-  if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
-    return json(500, { error: "Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY in Netlify env vars" });
-  }
-  if (!TELEGRAM_BOT_TOKEN) {
-    return json(500, { error: "Missing TELEGRAM_BOT_TOKEN in Netlify env vars" });
-  }
-
-  let payload;
-  try {
-    payload = JSON.parse(event.body || "{}");
-  } catch {
-    return json(400, { error: "Invalid JSON body" });
-  }
-
-  const { initData, telegramId, action, date, tasks } = payload;
-
-  if (!telegramId || typeof telegramId !== "string") {
-    return json(400, { error: "telegramId is required" });
-  }
-  if (!action || typeof action !== "string") {
-    return json(400, { error: "action is required" });
-  }
-  if (!date || typeof date !== "string") {
-    return json(400, { error: "date is required (YYYY-MM-DD)" });
-  }
-
-  // Validate Telegram initData
-  const ok = validateTelegramInitData(initData, TELEGRAM_BOT_TOKEN);
-  if (!ok) {
-    return json(401, { error: "Invalid Telegram initData" });
-  }
-
-  const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
-    auth: { persistSession: false },
-  });
 
   try {
-    if (action === "get") {
-      const { data, error } = await supabase
-        .from("planner_tasks")
-        .select("tasks")
-        .eq("telegram_id", telegramId)
-        .eq("date", date)
-        .maybeSingle();
+    const SUPABASE_URL = process.env.SUPABASE_URL;
+    const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-      if (error) return json(500, { error: error.message });
-
-      return json(200, { tasks: data?.tasks ?? [] });
+    if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
+      return {
+        statusCode: 500,
+        headers: corsHeaders,
+        body: JSON.stringify({ error: "Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY" }),
+      };
     }
 
-    if (action === "save") {
-      if (!Array.isArray(tasks)) {
-        return json(400, { error: "tasks must be an array" });
+    const body =
+      event.httpMethod === "POST"
+        ? JSON.parse(event.body || "{}")
+        : {};
+
+    const action = (body.action || (event.queryStringParameters?.action) || "get").toLowerCase();
+    const telegramId = body.telegramId || event.queryStringParameters?.telegramId;
+    const date = body.date || event.queryStringParameters?.date;
+
+    if (!telegramId || !date) {
+      return {
+        statusCode: 400,
+        headers: corsHeaders,
+        body: JSON.stringify({ error: "telegramId and date are required" }),
+      };
+    }
+
+    const baseHeaders = {
+      "Content-Type": "application/json",
+      apikey: SUPABASE_SERVICE_ROLE_KEY,
+      Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+    };
+
+    // GET tasks
+    if (event.httpMethod === "GET" || action === "get") {
+      const url =
+        `${SUPABASE_URL}/rest/v1/planner_tasks` +
+        `?select=tasks` +
+        `&telegram_id=eq.${encodeURIComponent(String(telegramId))}` +
+        `&date=eq.${encodeURIComponent(String(date))}` +
+        `&limit=1`;
+
+      const r = await fetch(url, { method: "GET", headers: baseHeaders });
+      const txt = await r.text();
+
+      if (!r.ok) {
+        return {
+          statusCode: r.status,
+          headers: corsHeaders,
+          body: JSON.stringify({ error: "Supabase GET failed", details: txt }),
+        };
       }
 
-      const row = {
-        telegram_id: telegramId,
-        date,
-        tasks,
-        updated_at: new Date().toISOString(),
+      const rows = txt ? JSON.parse(txt) : [];
+      const tasks = rows?.[0]?.tasks ?? [];
+
+      return {
+        statusCode: 200,
+        headers: corsHeaders,
+        body: JSON.stringify({ tasks }),
       };
-
-      // ✅ КЛЮЧЕВОЕ: UPSERT вместо INSERT
-      const { error } = await supabase
-        .from("planner_tasks")
-        .upsert(row, { onConflict: "telegram_id,date" });
-
-      if (error) return json(500, { error: error.message });
-
-      return json(200, { ok: true });
     }
 
-    return json(400, { error: "Unknown action. Use 'get' or 'save'." });
+    // SAVE tasks (UPSERT)
+    if (event.httpMethod === "POST" && action === "save") {
+      const tasksArr = Array.isArray(body.tasks) ? body.tasks : [];
+
+      const upsertUrl =
+        `${SUPABASE_URL}/rest/v1/planner_tasks` +
+        `?on_conflict=telegram_id,date`;
+
+      const payload = [{
+        telegram_id: String(telegramId),
+        date: String(date),
+        tasks: tasksArr,
+        updated_at: new Date().toISOString(),
+      }];
+
+      const r = await fetch(upsertUrl, {
+        method: "POST",
+        headers: {
+          ...baseHeaders,
+          // ключевое: UPSERT, а не INSERT
+          Prefer: "resolution=merge-duplicates,return=representation",
+        },
+        body: JSON.stringify(payload),
+      });
+
+      const txt = await r.text();
+
+      if (!r.ok) {
+        return {
+          statusCode: r.status,
+          headers: corsHeaders,
+          body: JSON.stringify({ error: "Supabase UPSERT failed", details: txt }),
+        };
+      }
+
+      return {
+        statusCode: 200,
+        headers: corsHeaders,
+        body: JSON.stringify({ ok: true }),
+      };
+    }
+
+    return {
+      statusCode: 400,
+      headers: corsHeaders,
+      body: JSON.stringify({ error: "Unknown action" }),
+    };
   } catch (e) {
-    return json(500, { error: e?.message || "Server error" });
+    return {
+      statusCode: 500,
+      headers: corsHeaders,
+      body: JSON.stringify({ error: String(e?.message || e) }),
+    };
   }
-};
+}
