@@ -164,7 +164,11 @@
 
   function requestSave(dateObj){
     const dateISO = fmtISO(dateObj);
-    const snapshot = deepClone(tasks);         // СНИМОК именно текущих задач
+    // фикс: сохраняем «чистый» снимок, чтобы не было затираний/сбросов при быстрых действиях
+    const snapshot = tasks.map(t => ({
+      text: t.text,
+      done: !!t.done
+    }));
     pending.set(dateISO, snapshot);            // коалесим: на дату всегда только последний снимок
     pumpSaves();
   }
@@ -193,7 +197,9 @@
 
     try{
       const data = await api("get", dateISO);
-      tasks = Array.isArray(data.tasks) ? data.tasks : [];
+      tasks = Array.isArray(data.tasks)
+        ? data.tasks.map(t => ({ text: t.text, done: !!t.done }))
+        : [];
     }catch(e){
       setError(e.message || "Ошибка загрузки");
       tasks = [];
