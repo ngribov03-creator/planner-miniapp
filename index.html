@@ -100,7 +100,10 @@
 
   const initData = tg?.initData || "";
   const user = tg?.initDataUnsafe?.user || null;
-  const telegramId = user?.id ? String(user.id) : "guest";
+  const telegramId = (user?.id != null)
+  ? String(user.id)
+  : (user?.username ? ("@" + user.username) : "guest");
+
   const userName = user ? (user.username ? "@"+user.username : [user.first_name, user.last_name].filter(Boolean).join(" ")) : "Гость";
   document.getElementById("userPill").textContent = "Пользователь: " + userName;
 
