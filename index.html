@@ -4,83 +4,45 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <title>Planner</title>
-
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
-
   <style>
     :root{
-      --bg:#0b0f14; --card:#111826; --txt:#e6edf3; --mut:#9aa4b2; --acc:#3b82f6;
-      --danger:#ef4444;
+      --bg:#0b0f14; --card:#111826; --txt:#e6edf3; --mut:#9aa4b2; --acc:#3b82f6; --danger:#ef4444;
     }
     *{ box-sizing:border-box; }
-    body{
-      margin:0; font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,Inter,Arial,sans-serif;
-      background:var(--bg); color:var(--txt);
-    }
+    body{ margin:0; font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,Inter,Arial,sans-serif; background:var(--bg); color:var(--txt); }
     .wrap{ padding:14px; max-width:860px; margin:0 auto; }
-    .top{
-      display:flex; gap:12px; align-items:center; justify-content:space-between; margin-bottom:12px;
-    }
-    .pill{
-      background:var(--card); border:1px solid rgba(255,255,255,.08);
-      padding:10px 12px; border-radius:14px; font-size:14px; color:var(--txt);
-    }
-    .btn{
-      background:var(--acc); border:none; color:white; padding:10px 12px; border-radius:12px;
-      font-weight:700; cursor:pointer;
-    }
+    .top{ display:flex; gap:12px; align-items:center; justify-content:space-between; margin-bottom:12px; }
+    .pill{ background:var(--card); border:1px solid rgba(255,255,255,.08); padding:10px 12px; border-radius:14px; font-size:14px; }
+    .btn{ background:var(--acc); border:none; color:white; padding:10px 12px; border-radius:12px; font-weight:700; cursor:pointer; }
     .btn:disabled{ opacity:.55; cursor:not-allowed; }
-    .ghost{
-      background:transparent; border:1px solid rgba(255,255,255,.14); color:var(--txt);
-    }
+    .ghost{ background:transparent; border:1px solid rgba(255,255,255,.14); color:var(--txt); }
+    .panel{ margin-top:12px; background:var(--card); border:1px solid rgba(255,255,255,.08); border-radius:16px; padding:12px; }
 
-    .calHead{
-      display:flex; align-items:center; justify-content:space-between; gap:10px; margin:10px 0 8px;
-      flex-wrap:wrap;
-    }
+    .calHead{ display:flex; align-items:center; justify-content:space-between; gap:10px; margin:10px 0 8px; flex-wrap:wrap; }
     .monthTitle{ font-weight:800; font-size:16px; }
     .calNav{ display:flex; gap:8px; flex-wrap:wrap; }
 
     .grid{ display:grid; grid-template-columns:repeat(7, 1fr); gap:8px; }
     .dow{ color:var(--mut); font-size:12px; text-align:center; padding:6px 0; user-select:none; }
-    .day{
-      background:var(--card); border:1px solid rgba(255,255,255,.08); border-radius:14px;
-      padding:10px; min-height:64px; cursor:pointer; display:flex; flex-direction:column; gap:6px;
-    }
+    .day{ background:var(--card); border:1px solid rgba(255,255,255,.08); border-radius:14px; padding:10px; min-height:64px; cursor:pointer; display:flex; flex-direction:column; gap:6px; }
     .day.muted{ opacity:.45; }
     .day.selected{ outline:2px solid rgba(59,130,246,.65); }
     .n{ font-weight:800; display:flex; justify-content:space-between; }
     .tag{ font-size:12px; color:var(--mut); }
 
-    .panel{
-      margin-top:12px; background:var(--card); border:1px solid rgba(255,255,255,.08);
-      border-radius:16px; padding:12px;
-    }
-    .h{
-      display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:10px;
-      flex-wrap:wrap;
-    }
+    .h{ display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:10px; flex-wrap:wrap; }
     .hTitle{ font-weight:900; }
     .progress{ color:var(--mut); font-size:13px; }
 
     .row{ display:flex; gap:8px; margin-top:10px; }
-    input{
-      flex:1; background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.12);
-      border-radius:12px; padding:10px 12px; color:var(--txt); outline:none;
-    }
+    input{ flex:1; background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.12); border-radius:12px; padding:10px 12px; color:var(--txt); outline:none; }
     .tasks{ margin-top:10px; display:flex; flex-direction:column; gap:8px; }
-    .task{
-      display:flex; align-items:center; justify-content:space-between; gap:10px;
-      background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.08);
-      border-radius:14px; padding:10px 12px;
-    }
+    .task{ display:flex; align-items:center; justify-content:space-between; gap:10px; background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.08); border-radius:14px; padding:10px 12px; }
     .left{ display:flex; gap:10px; align-items:flex-start; }
     .cb{ width:18px; height:18px; margin-top:2px; }
     .ttext.done{ text-decoration:line-through; color:var(--mut); }
-    .del{
-      background:transparent; border:none; color:rgba(255,255,255,.65);
-      cursor:pointer; font-size:18px; line-height:1;
-    }
+    .del{ background:transparent; border:none; color:rgba(255,255,255,.65); cursor:pointer; font-size:18px; line-height:1; }
     .hint{ margin-top:10px; color:var(--mut); font-size:12px; }
     .danger{ color: var(--danger); }
   </style>
@@ -104,7 +66,6 @@
           <button class="btn ghost" id="nextMonthBtn">месяц →</button>
         </div>
       </div>
-
       <div class="grid" id="dowRow"></div>
       <div class="grid" id="calGrid"></div>
     </div>
@@ -133,7 +94,7 @@
   </div>
 
 <script>
-  // ===== Telegram context =====
+  // ===== Telegram =====
   const tg = window.Telegram?.WebApp;
   if (tg) tg.ready();
 
@@ -149,79 +110,63 @@
 
   let selectedDate = loadSelectedDate() || todayLocal();
   let currentMonth = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), 1);
+  let tasks = [];
 
-  let tasks = []; // [{text:string, done:boolean}]
-  let isLoading = false;
+  // ===== Robust Save Queue (date + snapshot, coalescing) =====
+  // Храним "последний снимок" на дату. Сохранения идут строго по одному.
+  const pending = new Map(); // dateISO -> snapshot(array)
+  let saving = false;
+  let savePromiseResolve = null;
 
-  // ===== Save queue (FIX race conditions) =====
-  // Идея: любые изменения ставят "грязный" флаг и запускают дебаунс.
-  // Затем сохраняем строго по очереди, всегда снимком последнего состояния.
-  let saveChain = Promise.resolve();
-  let saveTimer = null;
-  const SAVE_DEBOUNCE_MS = 300;
-
-  function scheduleSave(dateObj){
-    if (telegramId === "guest") {
-      // гостевой режим тоже сохраняем, но локально
-      const key = "planner_guest_" + fmtISO(dateObj);
-      localStorage.setItem(key, JSON.stringify(tasks));
-      return;
-    }
-
-    if (saveTimer) clearTimeout(saveTimer);
-    saveTimer = setTimeout(() => {
-      const dateISO = fmtISO(dateObj);
-      // Снимок актуального состояния (чтобы не улетало "старое")
-      const snapshot = JSON.parse(JSON.stringify(tasks));
-
-      saveChain = saveChain.then(async () => {
-        setError("");
-        await api("save", dateISO, snapshot);
-      }).catch(e => {
-        setError(e.message || "Ошибка сохранения");
-      });
-    }, SAVE_DEBOUNCE_MS);
+  function deepClone(x){
+    // structuredClone может быть не везде; JSON ок для наших объектов
+    return JSON.parse(JSON.stringify(x));
   }
 
-  // ===== Helpers =====
-  function pad(n){ return String(n).padStart(2,"0"); }
-  function fmtISO(d){
-    return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
-  }
-  function parseISO(s){
-    const [y,m,dd] = s.split("-").map(Number);
-    return new Date(y, (m-1), dd);
-  }
-  function todayLocal(){
-    const now = new Date();
-    return new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  }
-  function addDays(date, delta){
-    const d = new Date(date.getFullYear(), date.getMonth(), date.getDate());
-    d.setDate(d.getDate() + delta);
-    return d;
-  }
-  function monthName(d){
-    return d.toLocaleDateString("ru-RU", { month:"long", year:"numeric" });
-  }
-  function dayTitle(d){
-    return d.toLocaleDateString("ru-RU", { weekday:"long", day:"2-digit", month:"long" });
-  }
-  function saveSelectedDate(d){
-    localStorage.setItem(LS_KEY, fmtISO(d));
-  }
-  function loadSelectedDate(){
-    const s = localStorage.getItem(LS_KEY);
-    if (!s) return null;
-    try { return parseISO(s); } catch { return null; }
-  }
   function setError(msg){
     const el = document.getElementById("err");
     if (!msg){ el.style.display="none"; el.textContent=""; return; }
     el.style.display="inline"; el.textContent=" — " + msg;
   }
-  function capitalize(s){
-    return s ? s.charAt(0).toUpperCase() + s.slice(1) : s;
+
+  function getSaveBarrier(){
+    // промис, который резолвится, когда очередь пуста и ничего не сохраняется
+    if (!saving && pending.size === 0) return Promise.resolve();
+    return new Promise(r => { savePromiseResolve = r; });
+  }
+
+  async function pumpSaves(){
+    if (saving) return;
+    saving = true;
+
+    try{
+      while (pending.size > 0){
+        const [dateISO, snapshot] = pending.entries().next().value;
+        pending.delete(dateISO);
+
+        if (telegramId === "guest"){
+          localStorage.setItem("planner_guest_" + dateISO, JSON.stringify(snapshot));
+          continue;
+        }
+        await api("save", dateISO, snapshot);
+      }
+    } catch(e){
+      setError(e.message || "Ошибка сохранения");
+    } finally {
+      saving = false;
+      if (savePromiseResolve && pending.size === 0){
+        const r = savePromiseResolve;
+        savePromiseResolve = null;
+        r();
+      }
+    }
+  }
+
+  function requestSave(dateObj){
+    const dateISO = fmtISO(dateObj);
+    const snapshot = deepClone(tasks);         // СНИМОК именно текущих задач
+    pending.set(dateISO, snapshot);            // коалесим: на дату всегда только последний снимок
+    pumpSaves();
   }
 
   // ===== API =====
@@ -229,13 +174,7 @@
     const res = await fetch("/.netlify/functions/tasks", {
       method: "POST",
       headers: {"Content-Type":"application/json"},
-      body: JSON.stringify({
-        initData,
-        telegramId,
-        action,
-        date: dateISO,
-        tasks: tasksArr
-      })
+      body: JSON.stringify({ initData, telegramId, action, date: dateISO, tasks: tasksArr })
     });
     const data = await res.json().catch(()=> ({}));
     if (!res.ok) throw new Error(data?.error || "API error");
@@ -243,28 +182,39 @@
   }
 
   async function loadTasksForDate(d){
+    setError("");
+    const dateISO = fmtISO(d);
+
     if (telegramId === "guest"){
-      const key = "planner_guest_" + fmtISO(d);
-      tasks = JSON.parse(localStorage.getItem(key) || "[]");
+      tasks = JSON.parse(localStorage.getItem("planner_guest_" + dateISO) || "[]");
       renderTasks();
       return;
     }
 
-    isLoading = true;
-    setError("");
     try{
-      const data = await api("get", fmtISO(d));
+      const data = await api("get", dateISO);
       tasks = Array.isArray(data.tasks) ? data.tasks : [];
     }catch(e){
       setError(e.message || "Ошибка загрузки");
       tasks = [];
     }finally{
-      isLoading = false;
       renderTasks();
     }
   }
 
-  // ===== UI: Calendar =====
+  // ===== Helpers =====
+  function pad(n){ return String(n).padStart(2,"0"); }
+  function fmtISO(d){ return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`; }
+  function parseISO(s){ const [y,m,dd] = s.split("-").map(Number); return new Date(y, (m-1), dd); }
+  function todayLocal(){ const now=new Date(); return new Date(now.getFullYear(), now.getMonth(), now.getDate()); }
+  function addDays(date, delta){ const d=new Date(date.getFullYear(), date.getMonth(), date.getDate()); d.setDate(d.getDate()+delta); return d; }
+  function monthName(d){ return d.toLocaleDateString("ru-RU", { month:"long", year:"numeric" }); }
+  function dayTitle(d){ return d.toLocaleDateString("ru-RU", { weekday:"long", day:"2-digit", month:"long" }); }
+  function saveSelectedDate(d){ localStorage.setItem(LS_KEY, fmtISO(d)); }
+  function loadSelectedDate(){ const s=localStorage.getItem(LS_KEY); if(!s) return null; try{return parseISO(s);}catch{return null;} }
+  function capitalize(s){ return s ? s.charAt(0).toUpperCase()+s.slice(1) : s; }
+
+  // ===== Calendar UI =====
   function renderDow(){
     const row = document.getElementById("dowRow");
     row.innerHTML = "";
@@ -278,13 +228,11 @@
 
   function renderCalendar(){
     document.getElementById("monthTitle").textContent = capitalize(monthName(currentMonth));
-
     const grid = document.getElementById("calGrid");
     grid.innerHTML = "";
 
     const first = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 1);
-    // JS: 0=Sun..6=Sat; нам надо Пн=0..Вс=6
-    let jsDow = first.getDay(); // 0..6
+    let jsDow = first.getDay();                 // 0=Sun..6=Sat
     let offset = (jsDow === 0) ? 6 : (jsDow - 1); // Пн=0
 
     const start = new Date(first);
@@ -296,28 +244,20 @@
 
       const cell = document.createElement("div");
       cell.className = "day";
-
-      const isOtherMonth = d.getMonth() !== currentMonth.getMonth();
-      if (isOtherMonth) cell.classList.add("muted");
-
-      const isSelected = fmtISO(d) === fmtISO(selectedDate);
-      if (isSelected) cell.classList.add("selected");
+      if (d.getMonth() !== currentMonth.getMonth()) cell.classList.add("muted");
+      if (fmtISO(d) === fmtISO(selectedDate)) cell.classList.add("selected");
 
       const n = document.createElement("div");
       n.className = "n";
       n.innerHTML = `<span>${d.getDate()}</span><span class="tag">${(fmtISO(d)===fmtISO(todayLocal())) ? "сегодня" : ""}</span>`;
-
       cell.appendChild(n);
 
-      cell.addEventListener("click", () => {
-        selectDate(d);
-      });
-
+      cell.addEventListener("click", () => { selectDate(d); });
       grid.appendChild(cell);
     }
   }
 
-  // ===== UI: Tasks =====
+  // ===== Tasks UI =====
   function renderTasks(){
     document.getElementById("dayTitle").textContent = dayTitle(selectedDate);
     const done = tasks.filter(t=>t.done).length;
@@ -346,7 +286,7 @@
       cb.addEventListener("change", () => {
         t.done = cb.checked;
         renderTasks();
-        scheduleSave(selectedDate);
+        requestSave(selectedDate);
       });
 
       const del = document.createElement("button");
@@ -355,12 +295,11 @@
       del.addEventListener("click", () => {
         tasks.splice(idx, 1);
         renderTasks();
-        scheduleSave(selectedDate);
+        requestSave(selectedDate);
       });
 
       left.appendChild(cb);
       left.appendChild(text);
-
       row.appendChild(left);
       row.appendChild(del);
       list.appendChild(row);
@@ -375,56 +314,48 @@
     tasks.unshift({ text, done:false });
     inp.value = "";
     renderTasks();
-    scheduleSave(selectedDate);
+    requestSave(selectedDate);
   }
 
   async function rollOverIncomplete(){
     const move = tasks.filter(t => !t.done).map(t => ({...t, done:false}));
     if (!move.length) return;
 
-    // 1) Удаляем невыполненные из текущего дня
+    // Удаляем невыполненные из текущего дня и сохраняем
     tasks = tasks.filter(t => t.done);
     renderTasks();
-    scheduleSave(selectedDate);
+    requestSave(selectedDate);
+    await getSaveBarrier();
 
-    // 2) Переходим на завтра, загружаем, добавляем и сохраняем
+    // Переходим на завтра
     const tomorrow = addDays(selectedDate, 1);
-    selectDate(tomorrow);
+    await selectDate(tomorrow);
 
-    // ждём загрузку задач на завтра, чтобы не смешать состояния
-    await saveChain; // дождаться предыдущих сохранений
-    await loadTasksForDate(selectedDate);
-
+    // Добавляем переносимые и сохраняем
     tasks = [...move, ...tasks];
     renderTasks();
-    scheduleSave(selectedDate);
-
-    // обновить календарь выделением
-    currentMonth = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), 1);
-    renderCalendar();
+    requestSave(selectedDate);
   }
 
-  // ===== Navigation =====
-  function selectDate(d){
+  // ===== Navigation (важно: ждём сохранение перед сменой дня) =====
+  async function selectDate(d){
+    // сначала дождаться, чтобы все изменения старого дня точно ушли
+    await getSaveBarrier();
+
     selectedDate = new Date(d.getFullYear(), d.getMonth(), d.getDate());
     saveSelectedDate(selectedDate);
 
     currentMonth = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), 1);
     renderCalendar();
-    loadTasksForDate(selectedDate);
+
+    await loadTasksForDate(selectedDate);
   }
 
-  document.getElementById("prevDayBtn").addEventListener("click", () => selectDate(addDays(selectedDate, -1)));
-  document.getElementById("nextDayBtn").addEventListener("click", () => selectDate(addDays(selectedDate,  1)));
+  document.getElementById("prevDayBtn").addEventListener("click", async () => { await selectDate(addDays(selectedDate, -1)); });
+  document.getElementById("nextDayBtn").addEventListener("click", async () => { await selectDate(addDays(selectedDate,  1)); });
 
-  document.getElementById("prevMonthBtn").addEventListener("click", () => {
-    currentMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth()-1, 1);
-    renderCalendar();
-  });
-  document.getElementById("nextMonthBtn").addEventListener("click", () => {
-    currentMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth()+1, 1);
-    renderCalendar();
-  });
+  document.getElementById("prevMonthBtn").addEventListener("click", () => { currentMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth()-1, 1); renderCalendar(); });
+  document.getElementById("nextMonthBtn").addEventListener("click", () => { currentMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth()+1, 1); renderCalendar(); });
 
   document.getElementById("addBtn").addEventListener("click", addTask);
   document.getElementById("taskInput").addEventListener("keydown", (e)=>{ if(e.key==="Enter") addTask(); });
